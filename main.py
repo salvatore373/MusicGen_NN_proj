@@ -51,7 +51,7 @@ class MaskedSelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, q_val, v_val, dropout, ff_units):
+    def __init__(self, q_val: int, v_val: int, dropout, ff_units):
         """
         Builds a block of the encoder part of the transformer
         :param q_val: The q parameter of the Self-Attention block.
@@ -87,7 +87,7 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers, q_val, v_val, dropout, ff_units):
+    def __init__(self, num_layers, q_val: int, v_val: int, dropout, ff_units):
         """
         Builds the encoder part of a Transformer (a concatenation of TransformerBlocks)
         :param num_layers: The number of TransformerBlocks to include in the encoder.
@@ -105,21 +105,159 @@ class TransformerEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask):
-        pass
+        """
+
+        :param x: Should have the following shape: (num_codebooks, f_r)
+        :param mask:
+        :return:
+        """
+        # Note:
+        # The input tokens are retrieved from the compression model, that have already imprinted the positional
+        # encoding. For this reason they can be passed directly to the transformer.
+
+        last_output = x
+        for layer in self.layers:
+            last_output = layer(last_output, last_output, last_output, mask)
+
+        return last_output
+
+
+class DecoderBlock(nn.Module):
+    def __init__(self,
+                 q_val: int,
+                 v_val: int,
+                 dropout: float,
+                 ff_units: int):
+        """
+        :param q_val: The q parameter of the Self-Attention block.
+        :param v_val: The v parameter of the Self-Attention block.
+        :param dropout: The percentage of dropout to place after the normalizations.
+        :param ff_units: The number of hidden units to use in the TransformerBlock.
+        """
+        super(DecoderBlock, self).__init__()
+        self.attention = MaskedSelfAttention(q_val, v_val)
+        self.normalization = nn.LayerNorm(v_val)
+        self.transformer_block = TransformerBlock(q_val, v_val, dropout, ff_units)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, value, key, src_mask, trg_mask):
+        """
+
+        :param x:
+        :param value: The value matrix of the Self-Attention block, retrieved from the Transformer Encoder,
+        to pass to a Self-Attention block in the decoder.
+        :param key: The key matrix of the Self-Attention block, retrieved from the Transformer Encoder,
+        to pass to a Self-Attention block in the decoder.
+        :param src_mask: The mask passed to the encoder.
+        :param trg_mask: The mask to use in the decoder.
+        :return:
+        """
+        attention = self.attention(x, x, x, trg_mask)
+        normalization = self.normalization(attention + x)
+        transformer_block_output = self.transformer_block(normalization, key, value, src_mask)
+        return transformer_block_output
+
+
+class TransformerDecoder(nn.Module):
+    def __init__(self, num_layers, q_val: int, v_val: int, dropout: float, ff_units: int, embed_size: int,
+                 trg_vocab_size: int):
+        """
+        Builds the decoder part of a Transformer (a concatenation of DecoderBlocks)
+        :param num_layers: The number of DecoderBlocks to include in the decoder.
+        :param q_val: The q parameter of the Self-Attention block.
+        :param v_val: The v parameter of the Self-Attention block.
+        :param dropout: The percentage of dropout to place after the normalizations.
+        :param ff_units: The number of hidden units to use in the TransformerBlock.
+        :param embed_size: The size of the tokens passed to the Encoder.
+        :param trg_vocab_size: The number of outputs of the decoder. This can also be intended as the number of
+         output units of the decoder.
+        """
+        super(TransformerDecoder, self).__init__()
+        self.layers = nn.ModuleList([DecoderBlock(q_val, v_val, dropout, ff_units) for _ in range(num_layers)])
+
+        self.full_conn_out = nn.Sequential(
+            nn.Linear(embed_size, trg_vocab_size),
+            nn.Softmax(),
+        )
+
+    def forward(self, x, encoder_output, src_mask, trg_mask):
+        """
+
+        :param x:
+        :param encoder_output: The output of the Encoder Block
+        :param src_mask: The src_mask argument of the DecoderBlock
+        :param trg_mask: The trg_mask argument of the DecoderBlock
+        """
+        curr_output = x
+        for dec_block in self.layers:
+            curr_output = dec_block(x, encoder_output, encoder_output, src_mask, trg_mask)
+
+        return self.full_conn_out(curr_output)
+
+
+class Transformer(nn.Module):
+    def __init__(self, num_layers, q_val: int, v_val: int, dropout: float, ff_units: int, embed_size: int,
+                 trg_vocab_size: int, src_pad_idx: int):
+        """
+        Builds a complete Transformer with an Encoder and a Decoder part
+        :param num_layers: The number of layers to include in the encoder and in the decoder.
+        :param q_val: The q parameter of the Self-Attention block.
+        :param v_val: The v parameter of the Self-Attention block.
+        :param dropout: The percentage of dropout to place after the normalizations.
+        :param ff_units: The number of hidden units to use in the TransformerBlock.
+        :param embed_size: The size of the tokens passed to the Encoder.
+        :param trg_vocab_size: The number of outputs of the decoder. This can also be intended as the number of
+         output units of the decoder.
+
+
+        """
+        super(Transformer, self).__init__()
+
+        self.src_pad_idx = src_pad_idx
+
+        self.encoder = TransformerEncoder(num_layers, q_val, v_val, dropout, ff_units)
+        self.decoder = TransformerDecoder(num_layers, q_val, v_val, dropout, ff_units, embed_size, trg_vocab_size)
+
+    # TODO:
+    def make_src_mask(self, src):
+        # (N, 1, 1, src_len)
+        return (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+
+    # TODO:
+    def make_trg_mask(self, trg):
+        N, trg_len = trg.shape
+        return torch.tril(torch.ones((trg_len, trg_len))).expand(
+            N, 1, trg_len, trg_len
+        )
+
+    def forward(self, enc_input, dec_input):
+        # Build masks for the encoder and for the decoder
+        enc_mask = self.make_src_mask(enc_input)
+        dec_mask = self.make_trg_mask(dec_input)
+
+        encoder_output = self.encoder(enc_input, enc_mask)
+        return self.decoder(dec_input, encoder_output, enc_mask, dec_mask)
 
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # x = torch.tensor([[1, 5, 6, 4, 3, 9, 5, 2, 0], [1, 8, 7, 3, 4, 5, 6, 7, 2]]).to(device)
-    # trg = torch.tensor([[1, 7, 4, 3, 5, 9, 2, 0], [1, 5, 6, 2, 4, 7, 6, 2]]).to(device)
-    #
-    # src_pad_idx = 0
-    # trg_pad_idx = 0
-    # src_vocab_size = 10
-    # trg_vocab_size = 10
-    # model = Transformer(src_vocab_size, trg_vocab_size, src_pad_idx, trg_pad_idx, device=device).to(
-    #     device
-    # )
-    # out = model(x, trg[:, :-1])
-    # print(out.shape)
+    x = torch.tensor([[1, 5, 6, 4, ], [1, 8, 7, 3, ]])
+    trg = torch.tensor([[1, 7, 4, 3, ], [1, 5, 6, 2, ]])
+
+    src_pad_idx = 0
+    trg_pad_idx = 0
+    src_vocab_size = 10
+    trg_vocab_size = 10
+    model = Transformer(
+        num_layers=1,
+        q_val=4,
+        v_val=4,
+        dropout=0.1,
+        ff_units=10,
+        embed_size=4,
+        trg_vocab_size=10,
+        src_pad_idx=0,
+    )
+    out = model(x, trg[:, :-1])
+    print(out.shape)
