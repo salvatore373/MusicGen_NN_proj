@@ -1,3 +1,5 @@
+from math import sqrt
+
 import torch
 import torch.nn as nn
 
@@ -18,9 +20,9 @@ class MaskedSelfAttention(nn.Module):
         self.v_param = v_param
 
         # considering a X of dimension (n, d):
-        self.query = nn.Linear(q_param, q_param)  # dim (n ,q)
-        self.key = nn.Linear(q_param, q_param)  # dim (n ,q)
-        self.value = nn.Linear(v_param, v_param)  # dim (n ,v)
+        self.query = nn.Linear(q_param, q_param)  # output dim (n ,q)
+        self.key = nn.Linear(q_param, q_param)  # output dim (n ,q)
+        self.value = nn.Linear(v_param, v_param)  # output dim (n ,v)
 
         # Output linear layer (as indicated in Fig. 2 of "Attention is all you need")
         self.output_lin = nn.Linear(v_param, v_param)
@@ -36,17 +38,20 @@ class MaskedSelfAttention(nn.Module):
         key = self.key(key)
         value = self.value(value)
 
+        # todo: if the weights of Q, K, V are negative, than the input of the softmax can contain inf,
+        #  resulting in a nan value in the corresponding output cell.
+
         # Compute Q * K^T
         query_key = torch.matmul(query, key.t())
 
         # Add masking
         masked = torch.mul(query_key, mask)
 
-        # Compute the attention (with softmax along rows) # todo: check softmax is along rows
-        h = torch.softmax(masked / torch.sqrt(self.q_param), dim=0)
+        # Compute the attention (with softmax along rows)
+        h = torch.softmax(masked / sqrt(self.q_param), dim=1)
         h = torch.matmul(h, value)
 
-        # Compute the output
+        # Compute the output (dim = n,v)
         return self.output_lin(h)
 
 
@@ -177,7 +182,7 @@ class TransformerDecoder(nn.Module):
 
         self.full_conn_out = nn.Sequential(
             nn.Linear(embed_size, trg_vocab_size),
-            nn.Softmax(),
+            nn.Softmax(dim=1),  # todo: check value of dim
         )
 
     def forward(self, x, encoder_output, src_mask, trg_mask):
@@ -214,6 +219,7 @@ class Transformer(nn.Module):
         super(Transformer, self).__init__()
 
         self.src_pad_idx = src_pad_idx
+        self.trg_vocab_size = trg_vocab_size
 
         self.encoder = TransformerEncoder(num_layers, q_val, v_val, dropout, ff_units)
         self.decoder = TransformerDecoder(num_layers, q_val, v_val, dropout, ff_units, embed_size, trg_vocab_size)
@@ -230,20 +236,26 @@ class Transformer(nn.Module):
             N, 1, trg_len, trg_len
         )
 
+    def make_mask(self, dim):
+        mask_ind = torch.tril(torch.ones((dim, dim), dtype=torch.bool), diagonal=-1).t()
+        mask = torch.tril(torch.ones(dim, dim))
+        mask[mask_ind] = float('-inf')
+        return mask
+
     def forward(self, enc_input, dec_input):
         # Build masks for the encoder and for the decoder
-        enc_mask = self.make_src_mask(enc_input)
-        dec_mask = self.make_trg_mask(dec_input)
+        enc_mask = self.make_mask(enc_input.shape[0])
+        dec_mask = self.make_mask(dec_input.shape[0])
 
         encoder_output = self.encoder(enc_input, enc_mask)
         return self.decoder(dec_input, encoder_output, enc_mask, dec_mask)
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    x = torch.tensor([[1, 5, 6, 4, ], [1, 8, 7, 3, ]])
-    trg = torch.tensor([[1, 7, 4, 3, ], [1, 5, 6, 2, ]])
+    # Test the transformer passing example data as input
+    x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
 
     src_pad_idx = 0
     trg_pad_idx = 0
@@ -259,5 +271,11 @@ if __name__ == "__main__":
         trg_vocab_size=10,
         src_pad_idx=0,
     )
-    out = model(x, trg[:, :-1])
+
+    # The encoder should receive the input sequence, while the decoder the output/to-learn
+    # sequence starting from index 1. In this case de decoder wants to reconstruct the input,
+    # then pass a sequence to the encoder and the same sequence to the decoder without
+    # the first element.
+    out = model(x, x[1:])
+    model.train()
     print(out.shape)
