@@ -262,13 +262,13 @@ if __name__ == "__main__":
     src_vocab_size = 10
     trg_vocab_size = 10
     model = Transformer(
-        num_layers=1,
+        num_layers=3,
         q_val=4,
         v_val=4,
         dropout=0.1,
-        ff_units=10,
+        ff_units=500,
         embed_size=4,
-        trg_vocab_size=10,
+        trg_vocab_size=4,
         src_pad_idx=0,
     )
 

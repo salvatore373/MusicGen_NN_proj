@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from Encodec import get_tokens_from_file
 from transformer import Transformer
 
 
@@ -74,7 +75,7 @@ class TransformerTrainer:
             # Compute the current loss
             # could use output.size(-1) instead of trg_vocab_size
             # todo: consider cross_entropy defined in official at 228
-            loss = loss_fn(output.contiguous(), encoder_input.contiguous())
+            loss = loss_fn(output, encoder_input)
             # Compute the gradients
             loss.backward()
             # Perform an optimization step
@@ -83,22 +84,26 @@ class TransformerTrainer:
 
 
 if __name__ == "__main__":
+    # n x d
+    # train_data = torch.rand(7, 4)
+    train_data = get_tokens_from_file('/Users/salvatore/Desktop/Università/Development/NN/MusicGen/dataset/music_data/-0Gj8-vB1q4.wav')
+    train_data = train_data.t()
+    train_data = train_data.to(torch.float32)
+
     model = Transformer(
-        num_layers=1,
+        num_layers=5,
         q_val=4,
         v_val=4,
         dropout=0.1,
-        ff_units=10,
-        embed_size=4,
+        ff_units=500,
+        embed_size=train_data.shape[1],  # 4,
         trg_vocab_size=4,
         src_pad_idx=0,
     )
     trainer = TransformerTrainer(model)
 
-    # n x d -> 7 x 4
-    train_data = torch.rand(7, 4)
     enc_input = train_data
     # Add a 0-row for padding in order to match the size of the decoder input with the size
     # of the encoder one
-    dec_input = F.pad(input=train_data[1:], pad=(0, 0, 1, 0), mode='constant', value=0)
+    dec_input = F.pad(input=enc_input[1:], pad=(0, 0, 1, 0), mode='constant', value=0)
     trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001)
