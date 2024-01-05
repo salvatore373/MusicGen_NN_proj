@@ -27,9 +27,10 @@ class MaskedSelfAttention(nn.Module):
         # Output linear layer (as indicated in Fig. 2 of "Attention is all you need")
         self.output_lin = nn.Linear(v_param, v_param)
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value, mask=None):
         """
         Compute masked self-attention for the given tuple of Query, Key and Value
+        :param mask: The mask used in the masked-attention formula. If not given, a matrix of ones will be used.
         :return: The computed masked self-attention.
         """
 
@@ -45,6 +46,8 @@ class MaskedSelfAttention(nn.Module):
         query_key = torch.matmul(query, key.t())
 
         # Add masking
+        if mask is None:
+            mask = torch.ones(query_key.size())
         masked = torch.mul(query_key, mask)
 
         # Compute the attention (with softmax along rows)
@@ -53,6 +56,21 @@ class MaskedSelfAttention(nn.Module):
 
         # Compute the output (dim = n,v)
         return self.output_lin(h)
+
+
+class CrossAttention(MaskedSelfAttention):
+    """
+    A block that computes cross-attention.
+    """
+
+    def forward(self, s1, s2):
+        """
+        Compute the cross-attention for the given input sequences
+        :param s1: The sequence to use as query.
+        :param s2: The sequence to use as key and value.
+        :return: The cross-attention for the given input sequences.
+        """
+        return super().forward(s1, s2, s2)
 
 
 class TransformerBlock(nn.Module):
@@ -79,9 +97,9 @@ class TransformerBlock(nn.Module):
         self.normalization_2 = nn.LayerNorm(v_val)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value):
         # Compute the masked self-attention
-        attention = self.attention(query, key, value, mask)
+        attention = self.attention(query, key, value)
         # Make layer normalization (with residual connection)
         first_normalization = self.dropout(self.normalization_1(attention + query))
 
@@ -109,11 +127,10 @@ class TransformerEncoder(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, mask):
+    def forward(self, x):
         """
 
         :param x: Should have the following shape: (num_codebooks, f_r)
-        :param mask:
         :return:
         """
         # Note:
@@ -122,7 +139,7 @@ class TransformerEncoder(nn.Module):
 
         last_output = x
         for layer in self.layers:
-            last_output = layer(last_output, last_output, last_output, mask)
+            last_output = layer(last_output, last_output, last_output)
 
         return last_output
 
@@ -144,23 +161,30 @@ class DecoderBlock(nn.Module):
         self.normalization = nn.LayerNorm(v_val)
         self.transformer_block = TransformerBlock(q_val, v_val, dropout, ff_units)
         self.dropout = nn.Dropout(dropout)
+        self.cross_attention = CrossAttention(q_val, v_val)
 
-    def forward(self, x, value, key, src_mask, trg_mask):
+        # todo: check if it is the right structure according to Transformer decoder section
+
+    def forward(self, x, value, key, src_mask, trg_mask, text_tokens=None):
         """
-
-        :param x:
+        :param x: The input of the block.
         :param value: The value matrix of the Self-Attention block, retrieved from the Transformer Encoder,
         to pass to a Self-Attention block in the decoder.
         :param key: The key matrix of the Self-Attention block, retrieved from the Transformer Encoder,
         to pass to a Self-Attention block in the decoder.
         :param src_mask: The mask passed to the encoder.
         :param trg_mask: The mask to use in the decoder.
+        :param text_tokens: The embedded text to use for text-conditioning. Cross-validation will be computed
+         between text_tokens and the output of the block. If not provided, text-conditioning will not be performed.
         :return:
         """
         attention = self.attention(x, x, x, trg_mask)
         normalization = self.normalization(attention + x)
-        transformer_block_output = self.transformer_block(normalization, key, value, src_mask)
-        return transformer_block_output
+        transformer_block_output = self.transformer_block(normalization, key, value)
+        if text_tokens is None:
+            return transformer_block_output
+        else:
+            return self.cross_attention(transformer_block_output, text_tokens)
 
 
 class TransformerDecoder(nn.Module):
@@ -185,17 +209,19 @@ class TransformerDecoder(nn.Module):
             nn.Softmax(dim=1),  # todo: check value of dim
         )
 
-    def forward(self, x, encoder_output, src_mask, trg_mask):
+    def forward(self, x, encoder_output, src_mask, trg_mask, text_tokens=None):
         """
 
         :param x:
         :param encoder_output: The output of the Encoder Block
         :param src_mask: The src_mask argument of the DecoderBlock
         :param trg_mask: The trg_mask argument of the DecoderBlock
+        :param text_tokens: The embedded text to use for text-conditioning. If not provided, text-conditioning
+         will not be performed.
         """
         curr_output = x
         for dec_block in self.layers:
-            curr_output = dec_block(x, encoder_output, encoder_output, src_mask, trg_mask)
+            curr_output = dec_block(x, encoder_output, encoder_output, src_mask, trg_mask, text_tokens)
 
         return self.full_conn_out(curr_output)
 
@@ -224,19 +250,8 @@ class Transformer(nn.Module):
         self.encoder = TransformerEncoder(num_layers, q_val, v_val, dropout, ff_units)
         self.decoder = TransformerDecoder(num_layers, q_val, v_val, dropout, ff_units, embed_size, trg_vocab_size)
 
-    # TODO:
-    def make_src_mask(self, src):
-        # (N, 1, 1, src_len)
-        return (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
-
-    # TODO:
-    def make_trg_mask(self, trg):
-        N, trg_len = trg.shape
-        return torch.tril(torch.ones((trg_len, trg_len))).expand(
-            N, 1, trg_len, trg_len
-        )
-
-    def make_mask(self, dim):
+    @staticmethod
+    def make_mask(dim):
         mask_ind = torch.tril(torch.ones((dim, dim), dtype=torch.bool), diagonal=-1).t()
         mask = torch.tril(torch.ones(dim, dim))
         mask[mask_ind] = float('-inf')
@@ -247,27 +262,45 @@ class Transformer(nn.Module):
         enc_mask = self.make_mask(enc_input.shape[0])
         dec_mask = self.make_mask(dec_input.shape[0])
 
-        encoder_output = self.encoder(enc_input, enc_mask)
+        encoder_output = self.encoder(enc_input)
         return self.decoder(dec_input, encoder_output, enc_mask, dec_mask)
+
+
+class TransformerWithText(Transformer):
+    """
+    Builds a Transformer that accepts text conditioning
+    """
+
+    def forward(self, enc_input, dec_input, text_tokens):
+        # Build masks for the encoder and for the decoder
+        enc_mask = self.make_mask(enc_input.shape[0])
+        dec_mask = self.make_mask(dec_input.shape[0])
+
+        encoder_output = self.encoder(enc_input)
+        return self.decoder(dec_input, encoder_output, enc_mask, dec_mask, text_tokens)
 
 
 if __name__ == "__main__":
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Test the transformer passing example data as input
-    x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
+    embedding_dim = 4
+    x = torch.rand(7, embedding_dim)  # n x d
+    # x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
+    text_tokens = torch.rand(2, embedding_dim)
 
     src_pad_idx = 0
     trg_pad_idx = 0
     src_vocab_size = 10
     trg_vocab_size = 10
-    model = Transformer(
+    model = TransformerWithText(
+    # model = Transformer(
         num_layers=3,
         q_val=4,
         v_val=4,
         dropout=0.1,
         ff_units=500,
-        embed_size=4,
+        embed_size=embedding_dim,
         trg_vocab_size=4,
         src_pad_idx=0,
     )
@@ -276,6 +309,7 @@ if __name__ == "__main__":
     # sequence starting from index 1. In this case de decoder wants to reconstruct the input,
     # then pass a sequence to the encoder and the same sequence to the decoder without
     # the first element.
-    out = model(x, x[1:])
+    out = model(x, x[1:], text_tokens)
+    # out = model(x, x[1:])
     model.train()
     print(out.shape)
