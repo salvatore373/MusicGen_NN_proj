@@ -3,6 +3,8 @@ from math import sqrt
 import torch
 import torch.nn as nn
 
+from T5_encoder import TextToTokenConverter
+
 
 class MaskedSelfAttention(nn.Module):
     def __init__(self,
@@ -287,7 +289,9 @@ if __name__ == "__main__":
     embedding_dim = 4
     x = torch.rand(7, embedding_dim)  # n x d
     # x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
-    text_tokens = torch.rand(2, embedding_dim)
+    # text_tokens = torch.rand(2, embedding_dim)
+    text_descr = 'This is a description'
+    text_tokens = TextToTokenConverter().convert_text_to_tokens(text_descr)
 
     src_pad_idx = 0
     trg_pad_idx = 0
