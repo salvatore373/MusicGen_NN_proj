@@ -16,53 +16,38 @@ class TransformerTrainer:
         """
         self.model = model
 
-    """
-    def train(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, eps=1e-9)
-        # loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
+    def train2(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float,
+               text_conditioning=None):
+        """
+        :param text_conditioning: The sequence of tokens to use for text conditioning. It is
+        strictly related to the model passed to this class' constructor.
+        :return:
+        """
+
+        # Define the loss function and the optimizer to use to train
         loss_fn = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+
+        # Set the model in training mode
+        self.model.train()
 
         for epoch in range(num_epochs):
-            torch.cuda.empty_cache()
-            self.model.train()
-
-            # encoder_input = batch['encoder_input'].to(device)  # (b, seq_len)
-            # decoder_input = batch['decoder_input'].to(device)  # (B, seq_len)
-
-            # Run the tensors through the encoder, decoder and the projection layer
-            encoder_output = self.model.encode(encoder_input, encoder_mask)  # (B, seq_len, d_model)
-            decoder_output = self.model.decode(encoder_output, encoder_mask, decoder_input,
-                                               decoder_mask)  # (B, seq_len, d_model)
-
-            # Compare the output with the label
-            label = batch['label'].to(device)  # (B, seq_len)
-
-            # Compute the loss using a simple cross entropy
-            loss = loss_fn()
-
-            # Backpropagate the loss
+            # Reset the gradients
+            optimizer.zero_grad()
+            # Calculate the output of the model
+            output = self.model(encoder_input, decoder_input, text_conditioning)
+            # Compute the current loss
+            # could use output.size(-1) instead of trg_vocab_size
+            # todo: consider cross_entropy defined in official at 228
+            loss = loss_fn(output, encoder_input)
+            # Compute the gradients
             loss.backward()
-
-            # Update the weights
+            # Perform an optimization step
             optimizer.step()
-            optimizer.zero_grad(set_to_none=True)
+            print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
 
-            # TODO: implement: Run validation at the end of every epoch
-            # run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device,
-            #                lambda msg: batch_iterator.write(msg), global_step, writer)
-
-            # Save the model at the end of every epoch
-            # model_filename = ''
-            # torch.save({
-            #     'epoch': epoch,
-            #     'model_state_dict': model.state_dict(),
-            #     'optimizer_state_dict': optimizer.state_dict(),
-            #     'global_step': global_step
-            # }, model_filename)
-    """
-
-    def train2(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float,
-               text_conditioning=None, melody_conditioning=None):
+    def train2_for_melody(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float,
+                          text_conditioning=None, melody_conditioning=None):
         """
         :param text_conditioning: The sequence of tokens to use for text conditioning. It is
         strictly related to the model passed to this class' constructor.
@@ -86,7 +71,7 @@ class TransformerTrainer:
             # Compute the current loss
             # could use output.size(-1) instead of trg_vocab_size
             # todo: consider cross_entropy defined in official at 228
-            loss = loss_fn(output, encoder_input)
+            loss = loss_fn(output, torch.cat((melody_conditioning, encoder_input), dim=0))
             # Compute the gradients
             loss.backward()
             # Perform an optimization step
@@ -108,8 +93,8 @@ if __name__ == "__main__":
     dec_input = F.pad(input=enc_input[1:], pad=(0, 0, 1, 0), mode='constant', value=0)
 
     # model_to_train = 'only_audio'
-    # model_to_train = 'with_text'
-    model_to_train = 'with_melody'
+    model_to_train = 'with_text'
+    # model_to_train = 'with_melody'
 
     if model_to_train == 'only_audio':
         model = Transformer(
@@ -150,8 +135,6 @@ if __name__ == "__main__":
                 embedding_size=4,
             )
 
-            # todo: fix -> what are the arguments of the cross-entropy? output of model - melody+encoder-input
-
             model = TransformerWithTextAndMelody(
                 num_layers=5,
                 q_val=4,
@@ -164,5 +147,5 @@ if __name__ == "__main__":
             )
             trainer = TransformerTrainer(model)
 
-            trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
-                           text_conditioning=text_tokens, melody_conditioning=melody)
+            trainer.train2_for_melody(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
+                                      text_conditioning=text_tokens, melody_conditioning=melody)
