@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="aa05c3c4-45d2-4341-983e-d21129995019" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/T5_encoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/T5_encoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/T5_encoder_with_melody.py" beforeDir="false" afterPath="$PROJECT_DIR$/T5_encoder_with_melody.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/trainer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/transformer.py" afterDir="false" />
     </list>
@@ -65,6 +65,7 @@
       <workItem from="1704483771404" duration="14000" />
       <workItem from="1704792837209" duration="4106000" />
       <workItem from="1704798971107" duration="26000" />
+      <workItem from="1704878196827" duration="8691000" />
     </task>
     <servers />
   </component>
@@ -83,10 +84,14 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/T5_encoder_py$trainer.coverage" NAME="trainer Coverage Results" MODIFIED="1704889558071" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/MusicGen_NN_proj$trainer.coverage" NAME="trainer Coverage Results" MODIFIED="1704801344686" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/T5_encoder_py$T5_encoder_with_melody.coverage" NAME="T5_encoder_with_melody Coverage Results" MODIFIED="1704888720579" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/MusicGen_NN_proj$Encodec.coverage" NAME="Encodec Coverage Results" MODIFIED="1704365831332" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/MusicGen_NN_proj$transformer.coverage" NAME="transformer Coverage Results" MODIFIED="1704800803643" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/T5_encoder_py$T5_encoder.coverage" NAME="T5_encoder Coverage Results" MODIFIED="1704878290067" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/MusicGen_NN_proj$T5_encoder.coverage" NAME="T5_encoder Coverage Results" MODIFIED="1704798646213" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/MusicGen_NN_proj$main.coverage" NAME="main Coverage Results" MODIFIED="1704027311307" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/T5_encoder_py$transformer.coverage" NAME="transformer Coverage Results" MODIFIED="1704888961949" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

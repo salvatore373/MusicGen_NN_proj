@@ -270,7 +270,7 @@ class Transformer(nn.Module):
 
 class TransformerWithText(Transformer):
     """
-    Builds a Transformer that accepts text conditioning
+    A Transformer that accepts text conditioning
     """
 
     def forward(self, enc_input, dec_input, text_tokens):
@@ -282,6 +282,23 @@ class TransformerWithText(Transformer):
         return self.decoder(dec_input, encoder_output, enc_mask, dec_mask, text_tokens)
 
 
+class TransformerWithTextAndMelody(TransformerWithText):
+    """
+    Builds a Transformer that accepts both text and melody conditioning
+    """
+
+    def forward(self, enc_input, dec_input, text_tokens, melody_chromagram):
+        # Compute the conditioned input of the decoder
+        dec_input_conditioned = torch.concat((melody_chromagram, dec_input), dim=0)
+
+        # Build masks for the encoder and for the decoder
+        enc_mask = self.make_mask(enc_input.shape[0])
+        dec_mask = self.make_mask(dec_input_conditioned.shape[0])
+
+        encoder_output = self.encoder(enc_input)
+        return self.decoder(dec_input_conditioned, encoder_output, enc_mask, dec_mask, text_tokens)
+
+
 if __name__ == "__main__":
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -289,16 +306,20 @@ if __name__ == "__main__":
     embedding_dim = 4
     x = torch.rand(7, embedding_dim)  # n x d
     # x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
+
     # text_tokens = torch.rand(2, embedding_dim)
     text_descr = 'This is a description'
     text_tokens = TextToTokenConverter().convert_text_to_tokens(text_descr)
+
+    melody_tokens = torch.rand(15, embedding_dim)  # n3 x d
 
     src_pad_idx = 0
     trg_pad_idx = 0
     src_vocab_size = 10
     trg_vocab_size = 10
-    model = TransformerWithText(
-    # model = Transformer(
+    model = TransformerWithTextAndMelody(
+        # model = TransformerWithText(
+        # model = Transformer(
         num_layers=3,
         q_val=4,
         v_val=4,
@@ -313,7 +334,8 @@ if __name__ == "__main__":
     # sequence starting from index 1. In this case de decoder wants to reconstruct the input,
     # then pass a sequence to the encoder and the same sequence to the decoder without
     # the first element.
-    out = model(x, x[1:], text_tokens)
-    # out = model(x, x[1:])
+    out = model(x, x[1:], text_tokens, melody_tokens)  # text and melody version
+    # out = model(x, x[1:], text_tokens) # text version
+    # out = model(x, x[1:]) # simple version
     model.train()
     print(out.shape)

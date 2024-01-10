@@ -4,7 +4,8 @@ import torch.nn.functional as F
 
 from Encodec import get_tokens_from_file
 from T5_encoder import TextToTokenConverter
-from transformer import Transformer, TransformerWithText
+from T5_encoder_with_melody import MelodyToTokenConverter
+from transformer import Transformer, TransformerWithText, TransformerWithTextAndMelody
 
 
 class TransformerTrainer:
@@ -61,9 +62,11 @@ class TransformerTrainer:
     """
 
     def train2(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float,
-               text_melody_conditioning=None):
+               text_conditioning=None, melody_conditioning=None):
         """
-        :param text_melody_conditioning: The sequence of tokens to use for text or melody conditioning. It is
+        :param text_conditioning: The sequence of tokens to use for text conditioning. It is
+        strictly related to the model passed to this class' constructor.
+        :param melody_conditioning: The sequence of tokens to use for melody conditioning. It is
         strictly related to the model passed to this class' constructor.
         :return:
         """
@@ -79,7 +82,7 @@ class TransformerTrainer:
             # Reset the gradients
             optimizer.zero_grad()
             # Calculate the output of the model
-            output = self.model(encoder_input, decoder_input, text_melody_conditioning)
+            output = self.model(encoder_input, decoder_input, text_conditioning, melody_conditioning)
             # Compute the current loss
             # could use output.size(-1) instead of trg_vocab_size
             # todo: consider cross_entropy defined in official at 228
@@ -105,8 +108,8 @@ if __name__ == "__main__":
     dec_input = F.pad(input=enc_input[1:], pad=(0, 0, 1, 0), mode='constant', value=0)
 
     # model_to_train = 'only_audio'
-    model_to_train = 'with_text'
-    # model_to_train = 'with_melody'
+    # model_to_train = 'with_text'
+    model_to_train = 'with_melody'
 
     if model_to_train == 'only_audio':
         model = Transformer(
@@ -122,21 +125,44 @@ if __name__ == "__main__":
         trainer = TransformerTrainer(model)
 
         trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001)
-    elif model_to_train == 'with_text':
+    else:
         text_descr = 'This is a description'
         text_tokens = TextToTokenConverter().convert_text_to_tokens(text_descr)
 
-        model = TransformerWithText(
-            num_layers=5,
-            q_val=4,
-            v_val=4,
-            dropout=0.1,
-            ff_units=500,
-            embed_size=train_data.shape[1],  # 4,
-            trg_vocab_size=4,
-            src_pad_idx=0,
-        )
-        trainer = TransformerTrainer(model)
+        if model_to_train == 'with_text':
+            model = TransformerWithText(
+                num_layers=5,
+                q_val=4,
+                v_val=4,
+                dropout=0.1,
+                ff_units=500,
+                embed_size=train_data.shape[1],  # 4,
+                trg_vocab_size=4,
+                src_pad_idx=0,
+            )
+            trainer = TransformerTrainer(model)
 
-        trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
-                       text_melody_conditioning=text_tokens)
+            trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
+                           text_conditioning=text_tokens)
+        elif model_to_train == 'with_melody':
+            melody = MelodyToTokenConverter().convert_text_melody_to_tokens(
+                audio_file_path='/Users/salvatore/Desktop/Università/Development/NN/MusicGen/dataset/music_data/-0Gj8-vB1q4.wav',
+                embedding_size=4,
+            )
+
+            # todo: fix -> what are the arguments of the cross-entropy? output of model - melody+encoder-input
+
+            model = TransformerWithTextAndMelody(
+                num_layers=5,
+                q_val=4,
+                v_val=4,
+                dropout=0.1,
+                ff_units=500,
+                embed_size=train_data.shape[1],  # 4,
+                trg_vocab_size=4,
+                src_pad_idx=0,
+            )
+            trainer = TransformerTrainer(model)
+
+            trainer.train2(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
+                           text_conditioning=text_tokens, melody_conditioning=melody)
