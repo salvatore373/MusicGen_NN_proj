@@ -1,2 +1,2 @@
-# MusicGen_NN_proj
+# Salvatore Michele Rago, Mattia Maffongelli: MusicGen_NN
  
