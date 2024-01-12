@@ -12,6 +12,8 @@ For melody conditioning, we utilized the **Librosa** library to handle audio man
 
 All the specific implementations are described in the notebook.
 
+[Google Colab Notebook](https://colab.research.google.com/drive/1I6lvaCnEkBErb19yE64xF93MJeZnO5OM?usp=sharing)
+
 ## Installation
 
 All the codes in this repository require Python 3.9 or above, PyTorch 2.1.0 or above, and other libraries. 
