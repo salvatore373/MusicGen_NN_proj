@@ -21,4 +21,18 @@ To ensure everything is executed correctly, please run the following commands:
 ```bash
 # Don't run this if you already have PyTorch installed.
 python -m pip install 'torch==2.1.0'
+# ffmpeg, required for other libraries
+sudo apt-get install ffmpeg
+# librosa
+pip install librosa
+# einops
+pip install einops
+# datasets
+pip install datasets
+# soundfile
+pip install soundfile
+# transformers library, by HuggingFace
+pip install git+https://github.com/huggingface/transformers.git
+# numpy
+pip install numpy
 ```
