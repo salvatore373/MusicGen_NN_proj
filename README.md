@@ -6,4 +6,16 @@ The purpose is to create a **versatile framework** for modeling multiple paralle
 
 The model is based on **EnCodec**, an audio tokenizer that uses quantized units to reconstruct audio with high fidelity, **RVQ**(Residual Vector Quantization), a compression model utilized to efficiently represent and store audio information, which introduces a residual component, capturing the difference between the original signal and the quantized representation and, finally, on particular **codebook interleaving patterns**. These one refer to a specific ways of organizing and using the codebooks during the generation or processing of audio: in our case, we used the **"delay pattern"**, which at each time step "s", it considers codebooks with an increasing delay. Subsequently, for each codebook "k", it looks back at previous time steps, incorporating a delay of "k - 1" steps. The aim is to capture temporal dependencies in the audio data, considering how the audio evolves over time and incorporating information from past steps.
 
-## Audio tokenization
+In text conditioning, we employed the pre-trained **T5-Encoder**. This encoder takes a textual description that matches the input audio X and computes a conditioning tensor with dimensions T_C = length of the sequence * D, where D is the inner dimension used in the autoregressive model.
+
+For melody conditioning, we utilized the **Librosa** library to handle audio manipulation. Specifically, we extracted the chromagram from the input audio and then applied filters to adapt the dimensions, resulting in the final tensor.
+
+All the specific implementations are described in the notebook.
+
+## Installation
+
+All the codes in this repository require Python 3.9 or above, PyTorch 2.1.0 or above, and other libraries. 
+
+To ensure everything is executed correctly, please run the following commands:
+
+''' print(hello_world)
