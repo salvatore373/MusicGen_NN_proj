@@ -38,3 +38,6 @@ pip install git+https://github.com/huggingface/transformers.git
 # numpy
 pip install numpy
 ```
+
+# Learn more
+Learn more about MusicGen visiting the official [GitHub Repository](https://github.com/facebookresearch/audiocraft/tree/main).
