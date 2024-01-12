@@ -18,4 +18,7 @@ All the codes in this repository require Python 3.9 or above, PyTorch 2.1.0 or a
 
 To ensure everything is executed correctly, please run the following commands:
 
-''' print(hello_world)
+```bash
+# Don't run this if you already have PyTorch installed.
+python -m pip install 'torch==2.1.0'
+```
