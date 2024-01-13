@@ -1,4 +1,5 @@
 from math import sqrt
+import sys
 
 import torch
 import torch.nn as nn
@@ -20,10 +21,13 @@ class MaskedSelfAttention(nn.Module):
         self.q_param = q_param
         self.v_param = v_param
 
+        # The first dim of query, key and value linears should be the embedding dimension.
+        # Assuming for simplicity that it is equal to q and v
+
         # considering a X of dimension (n, d):
         self.query = nn.Linear(q_param, q_param)  # output dim (n ,q)
         self.key = nn.Linear(q_param, q_param)  # output dim (n ,q)
-        self.value = nn.Linear(v_param, v_param)  # output dim (n ,v)
+        self.value = nn.Linear(q_param, v_param)  # output dim (n ,v)
 
     def forward(self, query, key, value, mask=None):
         """
@@ -49,6 +53,7 @@ class MaskedSelfAttention(nn.Module):
         # Add masking
         if mask is None:
             mask = torch.ones(query_key.size())
+        # query_key = torch.pow(torch.pow(query_key, 2), 1 / 2)  # todo: mine
         masked = torch.mul(query_key, mask)
 
         # Compute the attention (with softmax along rows)
@@ -79,7 +84,7 @@ class MaskedMultiHeadAttention(nn.Module):
         :param q_param: The not-fixed dimension of the Query, Key matrices
         :param v_param: The not-fixed dimension of the Value matrix
         """
-        super().__init__(*args, **kwargs)
+        super(MaskedMultiHeadAttention, self).__init__()
         self.h_param = h_param
         self.q_param = q_param
         self.v_param = v_param
@@ -106,7 +111,7 @@ class MultiHeadCrossAttention(nn.Module):
         :param q_param: The not-fixed dimension of the Query, Key matrices
         :param v_param: The not-fixed dimension of the Value matrix
         """
-        super().__init__(*args, **kwargs)
+        super(MultiHeadCrossAttention, self).__init__()
         self.h_param = h_param
         self.q_param = q_param
         self.v_param = v_param
@@ -304,7 +309,9 @@ class Transformer(nn.Module):
     def make_mask(dim):
         mask_ind = torch.tril(torch.ones((dim, dim), dtype=torch.bool), diagonal=-1).t()
         mask = torch.tril(torch.ones(dim, dim))
-        mask[mask_ind] = float('-inf')
+        # mask[mask_ind] = float('-inf')
+        mask[mask_ind] = sys.float_info.min
+
         return mask
 
     def forward(self, enc_input, dec_input):
