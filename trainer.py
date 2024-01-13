@@ -1,20 +1,26 @@
+import time
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from Encodec import get_tokens_from_file
+from Encodec import AudioTokenizer
 from T5_encoder import TextToTokenConverter
 from T5_encoder_with_melody import MelodyToTokenConverter
+from data_preparation import load_dataset
 from transformer import Transformer, TransformerWithText, TransformerWithTextAndMelody
 
 
 class TransformerTrainer:
-    def __init__(self, model: Transformer):
+    def __init__(self, model: Transformer, model_save_dir):
         """
 
         :param model: The model to train
+        :param model_save_dir: The directory where to save the trained model at the end of training.
         """
         self.model = model
+        self.model_save_dir = model_save_dir
 
     def train2(self, encoder_input, decoder_input, num_epochs: int, learning_rate: float,
                text_conditioning=None):
@@ -78,12 +84,88 @@ class TransformerTrainer:
             optimizer.step()
             print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
 
+    def train_dataset(self, dataset, num_epochs: int, learning_rate: float):
+        """
+        :param dataset: As returned from data_preparation.load_dataset().
+        """
+
+        torch.autograd.set_detect_anomaly(True)  # debug
+
+        # Define the loss function and the optimizer to use to train
+        loss_fn = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+
+        # Set the model in training mode
+        self.model.train()
+
+        N = len(dataset)
+        for epoch in range(num_epochs):
+            # Reset the gradients
+            optimizer.zero_grad()
+
+            losses = torch.zeros(N)
+            for i in range(N):
+                # Get a sequence of tokens representing an audio file, and the associated text conditioning
+                audio = dataset[i]['audio']  # n1 x d
+                text = dataset[i]['text']  # n2 x d
+
+                enc_input = audio
+                dec_input = F.pad(input=enc_input[1:], pad=(0, 0, 1, 0), mode='constant', value=0)
+                # Calculate the output of the model
+                output = self.model(enc_input, dec_input, text)
+
+                # Compute and store the loss for the current sequence
+                curr_loss = loss_fn(output, enc_input).reshape(1)
+                losses[i] = curr_loss
+
+            # Compute the sum of the losses for all the samples
+            loss = torch.sum(losses)
+            # Compute the gradients
+            loss.backward()
+            # Do gradient clipping
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
+            # Perform an optimization step
+            optimizer.step()
+            print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
+
+        model_name = {round(time.time() * 1000)}
+        torch.save(self.model.state_dict(), f'{self.model_save_dir}/{model_name}')
+        torch.save(self.model, f'{self.model_save_dir}/{model_name}-2')
+
 
 if __name__ == "__main__":
+    dataset = load_dataset()
+    model = TransformerWithText(
+        num_layers=5,
+        q_val=4,
+        v_val=4,
+        h_val=3,
+        dropout=0.1,
+        embed_size=4,  # 4,
+        trg_vocab_size=4,
+        src_pad_idx=0,
+    )
+    trainer = TransformerTrainer(model, '/Volumes/SALVATORE R/Università/NN/models')
+    trainer.train_dataset(dataset, num_epochs=100, learning_rate=1e-1)
+
+    """
+    Load the model with 
+    model = TheModelClass(*args, **kwargs)
+    model.load_state_dict(torch.load(PATH))
+    model.eval() # set layers to evaluation mode
+    
+    or
+    
+    # Model class must be defined somewhere
+    model = torch.load(PATH)
+    model.eval()
+    """
+
+    """
     # n x d
     # train_data = torch.rand(7, 4)
-    train_data = get_tokens_from_file(
-        '/Users/salvatore/Desktop/Università/Development/NN/MusicGen/dataset/music_data/-0Gj8-vB1q4.wav')
+    train_data = AudioTokenizer().get_tokens_from_file(
+        '/Volumes/SALVATORE R/Università/NN/dataset/music_data/-0Gj8-vB1q4.wav')
     train_data = train_data.t()
     train_data = train_data.to(torch.float32)
 
@@ -101,8 +183,8 @@ if __name__ == "__main__":
             num_layers=5,
             q_val=4,
             v_val=4,
+            h_val=3,
             dropout=0.1,
-            ff_units=500,
             embed_size=train_data.shape[1],  # 4,
             trg_vocab_size=4,
             src_pad_idx=0,
@@ -119,8 +201,8 @@ if __name__ == "__main__":
                 num_layers=5,
                 q_val=4,
                 v_val=4,
+                h_val=3,
                 dropout=0.1,
-                ff_units=500,
                 embed_size=train_data.shape[1],  # 4,
                 trg_vocab_size=4,
                 src_pad_idx=0,
@@ -140,7 +222,6 @@ if __name__ == "__main__":
                 q_val=4,
                 v_val=4,
                 dropout=0.1,
-                ff_units=500,
                 embed_size=train_data.shape[1],  # 4,
                 trg_vocab_size=4,
                 src_pad_idx=0,
@@ -149,3 +230,4 @@ if __name__ == "__main__":
 
             trainer.train2_for_melody(enc_input, dec_input, num_epochs=5000, learning_rate=0.0001,
                                       text_conditioning=text_tokens, melody_conditioning=melody)
+    """
