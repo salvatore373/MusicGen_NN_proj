@@ -12,7 +12,6 @@ class MaskedSelfAttention(nn.Module):
                  v_param):
         """
         Builds a block that computes masked self-attention.
-        The q and v parameters
         :param q_param: The not-fixed dimension of the Query, Key matrices
         :param v_param: The not-fixed dimension of the Value matrix
         """
@@ -26,12 +25,12 @@ class MaskedSelfAttention(nn.Module):
         self.key = nn.Linear(q_param, q_param)  # output dim (n ,q)
         self.value = nn.Linear(v_param, v_param)  # output dim (n ,v)
 
-        # Output linear layer (as indicated in Fig. 2 of "Attention is all you need")
-        self.output_lin = nn.Linear(v_param, v_param)
-
     def forward(self, query, key, value, mask=None):
         """
         Compute masked self-attention for the given tuple of Query, Key and Value
+        :param query
+        :param key
+        :param value
         :param mask: The mask used in the masked-attention formula. If not given, a matrix of ones will be used.
         :return: The computed masked self-attention.
         """
@@ -54,10 +53,7 @@ class MaskedSelfAttention(nn.Module):
 
         # Compute the attention (with softmax along rows)
         h = torch.softmax(masked / sqrt(self.q_param), dim=1)
-        h = torch.matmul(h, value)
-
-        # Compute the output (dim = n,v)
-        return self.output_lin(h)
+        return torch.matmul(h, value)
 
 
 class CrossAttention(MaskedSelfAttention):
@@ -75,25 +71,79 @@ class CrossAttention(MaskedSelfAttention):
         return super().forward(s1, s2, s2)
 
 
+class MaskedMultiHeadAttention(nn.Module):
+    def __init__(self, h_param, q_param, v_param, *args, **kwargs):
+        """
+        Builds a block that computes masked self-attention a number of times equal to h_param.
+        :param h_param: The number of times that masked self-attention should be performed.
+        :param q_param: The not-fixed dimension of the Query, Key matrices
+        :param v_param: The not-fixed dimension of the Value matrix
+        """
+        super().__init__(*args, **kwargs)
+        self.h_param = h_param
+        self.q_param = q_param
+        self.v_param = v_param
+
+        self.attention_layers = [MaskedSelfAttention(q_param, v_param) for _ in range(h_param)]
+
+        # Output linear layer (as indicated in Fig. 2 of "Attention is all you need")
+        self.output_lin = nn.Linear(h_param * v_param, v_param)
+
+    def forward(self, query, key, value, mask=None):
+        # Compute the self-attention h times
+        attentions = [self_att_layer(query, key, value, mask)
+                      for self_att_layer in self.attention_layers]
+        # Concatenate the result of each self-attention and then project them
+        concatenation = torch.cat(attentions, dim=1)
+        return self.output_lin(concatenation)
+
+
+class MultiHeadCrossAttention(nn.Module):
+    def __init__(self, h_param, q_param, v_param, *args, **kwargs):
+        """
+        Builds a block that computes masked self-attention a number of times equal to h_param.
+        :param h_param: The number of times that masked self-attention should be performed.
+        :param q_param: The not-fixed dimension of the Query, Key matrices
+        :param v_param: The not-fixed dimension of the Value matrix
+        """
+        super().__init__(*args, **kwargs)
+        self.h_param = h_param
+        self.q_param = q_param
+        self.v_param = v_param
+
+        self.attention_layers = [CrossAttention(q_param, v_param) for _ in range(h_param)]
+
+        # Output linear layer (as indicated in Fig. 2 of "Attention is all you need")
+        self.output_lin = nn.Linear(h_param * v_param, v_param)
+
+    def forward(self, s1, s2):
+        # Compute the self-attention h times
+        attentions = [cross_att_layer(s1, s2)
+                      for cross_att_layer in self.attention_layers]
+        # Concatenate the result of each self-attention and then project them
+        concatenation = torch.cat(attentions, dim=1)
+        return self.output_lin(concatenation)
+
+
 class TransformerBlock(nn.Module):
-    def __init__(self, q_val: int, v_val: int, dropout, ff_units):
+    def __init__(self, q_val: int, v_val: int, h_val: int, dropout):
         """
         Builds a block of the encoder part of the transformer
-        :param q_val: The q parameter of the Self-Attention block.
-        :param v_val: The v parameter of the Self-Attention block.
+        :param q_val: The q parameter of the Multi-Head-Attention block.
+        :param v_val: The v parameter of the Multi-Head-Attention block.
+        :param h_val: The v parameter of the Multi-Head-Attention block.
         :param dropout: The percentage of dropout to place after the normalization
-        :param ff_units: The number of hidden units of the Feed Forward layer.
         """
         super(TransformerBlock, self).__init__()
 
-        self.attention = MaskedSelfAttention(q_val, v_val)
+        self.attention = MaskedMultiHeadAttention(h_val, q_val, v_val)
         self.normalization_1 = nn.LayerNorm(v_val)
 
         # Define the FeedForward network as stated in section 3.3 of "Attention is all you need"
         self.feed_forward = nn.Sequential(
-            nn.Linear(v_val, ff_units),
+            nn.Linear(v_val, 4 * v_val),
             nn.ReLU(),
-            nn.Linear(ff_units, v_val),
+            nn.Linear(4 * v_val, v_val),
         )
 
         self.normalization_2 = nn.LayerNorm(v_val)
@@ -112,20 +162,20 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers, q_val: int, v_val: int, dropout, ff_units):
+    def __init__(self, num_layers, q_val: int, v_val: int, h_val: int, dropout):
         """
         Builds the encoder part of a Transformer (a concatenation of TransformerBlocks)
         :param num_layers: The number of TransformerBlocks to include in the encoder.
-        :param q_val: The q parameter of the Self-Attention block.
-        :param v_val: The v parameter of the Self-Attention block.
+        :param q_val: The q parameter of the Multi-Head-Attention block.
+        :param v_val: The v parameter of the Multi-Head-Attention block.
+        :param h_val: The h parameter of the Multi-Head-Attention block.
         :param dropout: The percentage of dropout to place after the normalizations.
-        :param ff_units: The number of hidden units to use in the TransformerBlock.
         """
         super(TransformerEncoder, self).__init__()
 
         self.layers = nn.ModuleList([])
         for _ in range(num_layers):
-            self.layers.append(TransformerBlock(q_val, v_val, dropout, ff_units))
+            self.layers.append(TransformerBlock(q_val, v_val, h_val, dropout))
 
         self.dropout = nn.Dropout(dropout)
 
@@ -150,22 +200,20 @@ class DecoderBlock(nn.Module):
     def __init__(self,
                  q_val: int,
                  v_val: int,
-                 dropout: float,
-                 ff_units: int):
+                 h_val: int,
+                 dropout: float, ):
         """
-        :param q_val: The q parameter of the Self-Attention block.
-        :param v_val: The v parameter of the Self-Attention block.
+        :param q_val: The q parameter of the Multi-Head-Attention blocks.
+        :param v_val: The v parameter of the Multi-Head-Attention blocks.
+        :param h_val: The h parameter of the Multi-Head-Attention blocks.
         :param dropout: The percentage of dropout to place after the normalizations.
-        :param ff_units: The number of hidden units to use in the TransformerBlock.
         """
         super(DecoderBlock, self).__init__()
         self.attention = MaskedSelfAttention(q_val, v_val)
         self.normalization = nn.LayerNorm(v_val)
-        self.transformer_block = TransformerBlock(q_val, v_val, dropout, ff_units)
+        self.transformer_block = TransformerBlock(q_val, v_val, h_val, dropout)
         self.dropout = nn.Dropout(dropout)
-        self.cross_attention = CrossAttention(q_val, v_val)
-
-        # todo: check if it is the right structure according to Transformer decoder section
+        self.cross_attention = MultiHeadCrossAttention(h_val, q_val, v_val)
 
     def forward(self, x, value, key, src_mask, trg_mask, text_tokens=None):
         """
@@ -190,25 +238,25 @@ class DecoderBlock(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, num_layers, q_val: int, v_val: int, dropout: float, ff_units: int, embed_size: int,
+    def __init__(self, num_layers, q_val: int, v_val: int, h_val: int, dropout: float, embed_size: int,
                  trg_vocab_size: int):
         """
         Builds the decoder part of a Transformer (a concatenation of DecoderBlocks)
         :param num_layers: The number of DecoderBlocks to include in the decoder.
-        :param q_val: The q parameter of the Self-Attention block.
-        :param v_val: The v parameter of the Self-Attention block.
+        :param q_val: The q parameter of the Multi-Head-Attention block.
+        :param v_val: The v parameter of the Multi-Head-Attention block.
+        :param h_val: The h parameter of the Multi-Head-Attention block.
         :param dropout: The percentage of dropout to place after the normalizations.
-        :param ff_units: The number of hidden units to use in the TransformerBlock.
         :param embed_size: The size of the tokens passed to the Encoder.
         :param trg_vocab_size: The number of outputs of the decoder. This can also be intended as the number of
          output units of the decoder.
         """
         super(TransformerDecoder, self).__init__()
-        self.layers = nn.ModuleList([DecoderBlock(q_val, v_val, dropout, ff_units) for _ in range(num_layers)])
+        self.layers = nn.ModuleList([DecoderBlock(q_val, v_val, h_val, dropout) for _ in range(num_layers)])
 
         self.full_conn_out = nn.Sequential(
             nn.Linear(embed_size, trg_vocab_size),
-            nn.Softmax(dim=1),  # todo: check value of dim
+            nn.Softmax(dim=1),
         )
 
     def forward(self, x, encoder_output, src_mask, trg_mask, text_tokens=None):
@@ -229,15 +277,15 @@ class TransformerDecoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, num_layers, q_val: int, v_val: int, dropout: float, ff_units: int, embed_size: int,
+    def __init__(self, num_layers, q_val: int, v_val: int, h_val: int, dropout: float, embed_size: int,
                  trg_vocab_size: int, src_pad_idx: int):
         """
         Builds a complete Transformer with an Encoder and a Decoder part
         :param num_layers: The number of layers to include in the encoder and in the decoder.
-        :param q_val: The q parameter of the Self-Attention block.
-        :param v_val: The v parameter of the Self-Attention block.
+        :param q_val: The q parameter of the Multi-Head-Attention block.
+        :param v_val: The v parameter of the Multi-Head-Attention block.
+        :param h_val: The h parameter of the Multi-Head-Attention block.
         :param dropout: The percentage of dropout to place after the normalizations.
-        :param ff_units: The number of hidden units to use in the TransformerBlock.
         :param embed_size: The size of the tokens passed to the Encoder.
         :param trg_vocab_size: The number of outputs of the decoder. This can also be intended as the number of
          output units of the decoder.
@@ -249,8 +297,8 @@ class Transformer(nn.Module):
         self.src_pad_idx = src_pad_idx
         self.trg_vocab_size = trg_vocab_size
 
-        self.encoder = TransformerEncoder(num_layers, q_val, v_val, dropout, ff_units)
-        self.decoder = TransformerDecoder(num_layers, q_val, v_val, dropout, ff_units, embed_size, trg_vocab_size)
+        self.encoder = TransformerEncoder(num_layers, q_val, v_val, h_val, dropout)
+        self.decoder = TransformerDecoder(num_layers, q_val, v_val, h_val, dropout, embed_size, trg_vocab_size)
 
     @staticmethod
     def make_mask(dim):
@@ -317,14 +365,14 @@ if __name__ == "__main__":
     trg_pad_idx = 0
     src_vocab_size = 10
     trg_vocab_size = 10
-    model = TransformerWithTextAndMelody(
-        # model = TransformerWithText(
+    # model = TransformerWithTextAndMelody(
+    model = TransformerWithText(
         # model = Transformer(
         num_layers=3,
         q_val=4,
         v_val=4,
+        h_val=3,
         dropout=0.1,
-        ff_units=500,
         embed_size=embedding_dim,
         trg_vocab_size=4,
         src_pad_idx=0,
@@ -334,8 +382,8 @@ if __name__ == "__main__":
     # sequence starting from index 1. In this case de decoder wants to reconstruct the input,
     # then pass a sequence to the encoder and the same sequence to the decoder without
     # the first element.
-    out = model(x, x[1:], text_tokens, melody_tokens)  # text and melody version
-    # out = model(x, x[1:], text_tokens) # text version
-    # out = model(x, x[1:]) # simple version
+    # out = model(x, x[1:], text_tokens, melody_tokens)  # text and melody version
+    out = model(x, x[1:], text_tokens)  # text version
+    # out = model(x, x[1:])  # simple version
     model.train()
     print(out.shape)
