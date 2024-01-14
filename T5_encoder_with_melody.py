@@ -7,7 +7,7 @@ import soundfile as sf
 
 class MelodyToTokenConverter:
 
-    def convert(self, audio_time_series, sr, embedding_size):
+    def convert(self, audio_time_series, sr, embedding_size, argmax=False):
         audio_time_series = audio_time_series.to(torch.float)
         nfft = 128
         spec = torchaudio.transforms.Spectrogram(n_fft=nfft, power=2, center=True,
@@ -21,9 +21,10 @@ class MelodyToTokenConverter:
         from einops import rearrange
         norm_chroma = rearrange(norm_chroma, 'b d t -> b t d')
 
-        idx = norm_chroma.argmax(-1, keepdim=True)
-        norm_chroma[:] = 0
-        norm_chroma.scatter_(dim=-1, index=idx, value=1)
+        if argmax:
+            idx = norm_chroma.argmax(-1, keepdim=True)
+            norm_chroma[:] = 0
+            norm_chroma.scatter_(dim=-1, index=idx, value=1)
 
         return norm_chroma
 
