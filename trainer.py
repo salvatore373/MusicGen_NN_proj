@@ -135,4 +135,4 @@ if __name__ == "__main__":
         src_pad_idx=0,
     )
     trainer = TransformerTrainer(model, '/Volumes/SALVATORE R/Università/NN/models')
-    trainer.train_on_dataset(dataset, num_epochs=100, learning_rate=1e-1)
+    trainer.train_on_dataset(dataset, num_epochs=2000, learning_rate=1e-1)
