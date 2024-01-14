@@ -47,6 +47,8 @@ class AudioGenerator:
         if file_path is not None:
             self.audio_tokenizer.save_tokens_to_audio_file(output.t(), file_path)
 
+        return output
+
 
 if __name__ == '__main__':
     dataset = load_dataset()
