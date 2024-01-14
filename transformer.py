@@ -1,5 +1,5 @@
-from math import sqrt
 import sys
+from math import sqrt
 
 import torch
 import torch.nn as nn
@@ -21,7 +21,7 @@ class MaskedSelfAttention(nn.Module):
         self.q_param = q_param
         self.v_param = v_param
 
-        # The first dim of query, key and value linears should be the embedding dimension.
+        # The first dim of query, key and value Linear should be the embedding dimension.
         # Assuming for simplicity that it is equal to q and v
 
         # considering a X of dimension (n, d):
@@ -44,16 +44,12 @@ class MaskedSelfAttention(nn.Module):
         key = self.key(key)
         value = self.value(value)
 
-        # todo: if the weights of Q, K, V are negative, than the input of the softmax can contain inf,
-        #  resulting in a nan value in the corresponding output cell.
-
         # Compute Q * K^T
         query_key = torch.matmul(query, key.t())
 
         # Add masking
         if mask is None:
             mask = torch.ones(query_key.size())
-        # query_key = torch.pow(torch.pow(query_key, 2), 1 / 2)  # todo: mine
         masked = torch.mul(query_key, mask)
 
         # Compute the attention (with softmax along rows)
@@ -309,7 +305,6 @@ class Transformer(nn.Module):
     def make_mask(dim):
         mask_ind = torch.tril(torch.ones((dim, dim), dtype=torch.bool), diagonal=-1).t()
         mask = torch.tril(torch.ones(dim, dim))
-        # mask[mask_ind] = float('-inf')
         mask[mask_ind] = sys.float_info.min
 
         return mask
@@ -355,16 +350,13 @@ class TransformerWithTextAndMelody(TransformerWithText):
 
 
 if __name__ == "__main__":
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     # Test the transformer passing example data as input
     embedding_dim = 4
     x = torch.rand(7, embedding_dim)  # n x d
-    # x = torch.tensor([[1.0, 5.0, 6.0, 4.0, ], [1.0, 8.0, 7.0, 3.0, ]])  # n x d
 
     # text_tokens = torch.rand(2, embedding_dim)
     text_descr = 'This is a description'
-    text_tokens = TextToTokenConverter().convert_text_to_tokens(text_descr)
+    text_tokens = TextToTokenConverter().convert_text_to_tokens(text_descr)  # n2 x d
 
     melody_tokens = torch.rand(15, embedding_dim)  # n3 x d
 

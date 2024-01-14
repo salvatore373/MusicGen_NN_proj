@@ -6,7 +6,7 @@ from transformer import TransformerWithText
 
 
 class AudioGenerator:
-    def __init__(self):
+    def __init__(self, model_path: str):
         self.model = TransformerWithText(num_layers=5,
                                          q_val=4,
                                          v_val=4,
@@ -15,7 +15,7 @@ class AudioGenerator:
                                          embed_size=4,  # 4,
                                          trg_vocab_size=4,
                                          src_pad_idx=0, )
-        self.model.load_state_dict(torch.load('/Volumes/SALVATORE R/Università/NN/models/1705162934753'))
+        self.model.load_state_dict(torch.load(model_path))
         self.model.eval()  # set layers to evaluation mode
 
         self.audio_tokenizer = AudioTokenizer()
@@ -29,25 +29,12 @@ class AudioGenerator:
         :param file_path: The .wav file where to save the generated audio.
         :return: the generated tokens and saves them as audio file based on whether file_path is None.
         """
-        # enc_input = torch.rand((num_tokens, 4))
-        # dec_first_input = torch.zeros((1, 4))
         rnd_noise1 = torch.rand((1, 4))
         rnd_noise2 = torch.rand((1, 4))
         mask = self.model.make_mask(1)
 
         output = torch.empty((num_tokens, 4))
         for i in range(num_tokens):
-            # ver1
-            # last_output = model.forward(enc_input[i:i + 1], dec_first_input if i - 1 < 0 else output[i - 1:i],
-            #                             text_tokens=text_tokens)
-            # output[i] = last_output
-
-            # ver2
-            # last_output = self.model.forward(enc_input[i:i + 1], dec_first_input if i - 1 < 0 else output[:i],
-            #                                  text_tokens=text_tokens)
-            # output[:i] = last_output
-
-            # ver3
             last_output = self.model.decoder(
                 x=output[i - 1:i] if i >= 1 else rnd_noise1,  # last generated token or random noise
                 encoder_output=output[i - 1:i] if i >= 1 else rnd_noise2,
@@ -66,5 +53,5 @@ if __name__ == '__main__':
     sample = dataset[-1]
     text_tokens = sample['text']
 
-    generator = AudioGenerator()
+    generator = AudioGenerator(model_path='/Volumes/SALVATORE R/Università/NN/models/1705162934753')
     generator.generate_audio(text_tokens, file_path='/Volumes/SALVATORE R/Università/NN/outputs/test.wav')

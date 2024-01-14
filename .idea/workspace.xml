@@ -7,6 +7,12 @@
     <list default="true" id="aa05c3c4-45d2-4341-983e-d21129995019" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Encodec.py" beforeDir="false" afterPath="$PROJECT_DIR$/Encodec.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/T5_encoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/T5_encoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/T5_encoder_with_melody.py" beforeDir="false" afterPath="$PROJECT_DIR$/T5_encoder_with_melody.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/audio_generator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/melody_conditioning.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/trainer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/transformer.py" beforeDir="false" afterPath="$PROJECT_DIR$/transformer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -125,7 +131,8 @@
       <workItem from="1704903995188" duration="1090000" />
       <workItem from="1704965072063" duration="9000" />
       <workItem from="1704973665108" duration="9472000" />
-      <workItem from="1705139476865" duration="25816000" />
+      <workItem from="1705139476865" duration="26362000" />
+      <workItem from="1705223438113" duration="775000" />
     </task>
     <servers />
   </component>
@@ -150,17 +157,6 @@
           <url>file:///opt/homebrew/Caskroom/miniforge/base/envs/pytorch/lib/python3.9/site-packages/transformers/models/encodec/modeling_encodec.py</url>
           <line>606</line>
           <option name="timeStamp" value="15" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <condition expression="self.attention.query.weight[0][0].isnan()" language="Python" />
-          <url>file://$PROJECT_DIR$/transformer.py</url>
-          <line>235</line>
-          <option name="timeStamp" value="84" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/audio_generator.py</url>
-          <line>61</line>
-          <option name="timeStamp" value="141" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
